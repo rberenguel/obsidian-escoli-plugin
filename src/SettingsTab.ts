@@ -19,7 +19,7 @@ export class EscoliSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Footnote prefix")
 			.setDesc(
-				"Only footnotes starting with this prefix will be converted to marginalia. (e.g., 'esc-')"
+				"Only footnotes starting with this prefix will be converted to marginalia. (e.g., 'esc-')",
 			)
 			.addText((text) =>
 				text
@@ -28,7 +28,7 @@ export class EscoliSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.prefix = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 	}
 }
