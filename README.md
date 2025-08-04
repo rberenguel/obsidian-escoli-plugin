@@ -1,45 +1,55 @@
 # Escoli: An Obsidian plugin for Marginalia
 
-An Obsidian plugin to transform footnotes into elegant marginalia notes, inspired by the classic style of placing notes in the margins of books.
+An Obsidian plugin to transform your footnotes into elegant, interactive marginalia notes directly in the Live Preview editor.
 
-> **Escoli** is a Catalan word for a scholarly or explanatory note, a gloss, or a scholium. It reflects the plugin's purpose: to bring your annotations out of the footer and into the margin, where they are more accessible and contextually placed.
+> **Escoli**: Catalan for a scholarly or explanatory note, a gloss, or a _scholium_.
+
 
 ---
 
 ## Features
 
-### Footnote-to-Marginalia Conversion
+Escoli enhances Obsidian's editor by turning a specific subset of your footnotes into a dynamic system for side notes.
 
-Automatically converts standard Markdown footnotes into clean, readable marginalia notes.
+* **Live Preview Marginalia**: Your footnote content appears automatically in the right-hand margin as you write, no need to switch to Reading View.
+* **Editable Markers**: The footnote references in your text are replaced by clean, numbered markers (`‹1 ☞›`). Clicking on a marker instantly reveals the original `[^esc-note]` text so you can edit it seamlessly.
+* **Smart Note Titles**: Marginal notes are automatically titled with a sequential number and the name of your reference. For example, a footnote named `[^esc-key-concept]` will appear in the margin with the title `1: KEY CONCEPT`.
+* **Customizable Prefix**: You control which footnotes become marginalia. By default, only footnotes starting with `[^esc-...]` are transformed, but you can configure this prefix in the settings.
+* **Clean Workspace**: The plugin automatically hides the standard footnote list at the bottom of the page in Reading View, keeping your notes tidy.
 
--   **How it Works:**
-    1.  Write your footnotes using the standard Markdown syntax (`[^1]`, `[^note]`, etc.).
-    2.  In Reading View, the plugin will automatically hide the default footnote list at the bottom of the page.
-    3.  The content of each footnote is then displayed as a pop-up note in the right margin, next to the corresponding reference.
+---
 
-**Example Markdown:**
-```markdown
-Here is some text with a footnote.[^1]
+## How to Use
 
-And here is another one with a more descriptive name.[^note]
-
-[^1]: This is the first footnote.
-[^note]: This is the second, more descriptive footnote.
-```
-
-**Result:**
-In reading view, the footnotes will appear as notes in the margin when you hover over them, rather than at the bottom of the page.
+1.  **Install and enable** the Escoli plugin.
+2.  (Optional) Navigate to **Settings → Escoli** to change the default footnote prefix from `esc-`.
+3.  In a note, create a footnote reference using your chosen prefix. For example:
+    ```markdown
+    The concept of a token bucket is fundamental to rate limiting.[^esc-token-bucket]
+    ```
+4.  Define the content for your footnote at the bottom of the note, it is a normal footnote for any other purpose:
+    ```markdown
+    [^esc-token-bucket]: A token bucket is an algorithm used in packet-switched computer networks and telecommunications networks. It can be used to check that data transmissions conform to defined limits on bandwidth and burstiness.
+    ```
+5.  Escoli will instantly render the reference as a numbered marker (`‹1 ☞›`) and display the content in a note in the right margin of your editor.
 
 ---
 
 ## Installation
 
+### From the Community Plugins list
+
+*(This is the recommended method.)*
+
+1.  Go to **Settings** > **Community Plugins**.
+2.  Click **Browse** and search for "Escoli".
+3.  Click **Install**, and then once it's finished, click **Enable**.
+
 ### Manual Installation
 
-1.  Download the latest release files (`main.js`, `styles.css`, `manifest.json`) from the **Releases** page of the GitHub repository (or the zip file, contains all of these).
-2.  Find your Obsidian vault's plugins folder by going to `Settings` > `About` and clicking `Open` next to `Override config folder`. Inside that folder, navigate into the `plugins` directory.
+1.  Download the latest release files (`main.js`, `styles.css`, `manifest.json`) from the **Releases** page of the GitHub repository.
+2.  Go to your vault's plugins folder: **Settings** > **Community Plugins** > **Plugins folder** (click the folder icon).
 3.  Create a new folder named `escoli`.
-4.  Copy the `main.js`, `manifest.json`, and `styles.css` files into the new `escoli` folder.
-5.  In Obsidian, go to **Settings** > **Community Plugins**.
-6.  Make sure "Restricted mode" is turned off. Click the "Reload plugins" button.
-7.  Find "Escoli" in the list and **enable** it.
+4.  Copy the three files you downloaded into the new `escoli` folder.
+5.  In Obsidian, go back to **Settings** > **Community Plugins** and click the "Reload plugins" button.
+6.  Find "Escoli" in the list and **enable** it.
