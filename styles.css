@@ -12,16 +12,8 @@
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	border-radius: 4px;
 	pointer-events: none; /* Start with no interaction */
-	opacity: 0; /* Hidden by default */
-	visibility: hidden;
-	transition:
-		opacity 0.15s ease-in-out,
-		visibility 0.15s ease-in-out;
-}
-
-.escoli-note.is-visible {
-	opacity: 1;
-	visibility: visible;
+	white-space: pre-wrap; /* Preserve whitespace and respect newlines */
+	transition: top 0.2s ease-out, left 0.2s ease-out;
 }
 
 /* The container is no longer needed for positioning, but can be useful for targeting. */

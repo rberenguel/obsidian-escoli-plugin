@@ -8,25 +8,33 @@ import {
 } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import EscoliPlugin from "../main";
+import { App, MarkdownRenderer, Component } from "obsidian";
 
 class MarginaliaWidget extends WidgetType {
 	private noteEl: HTMLElement | null = null;
+	private scrollerEl: HTMLElement | null = null;
+	private positionNoteHandler: (() => void) | null = null;
+	private component: Component;
 
 	constructor(
 		private readonly name: string,
-		private readonly content: string
+		private readonly content: string,
+		private readonly pos: number,
+		private readonly app: App,
+		private readonly sourcePath: string | undefined,
 	) {
 		super();
-		console.log(`Escoli: MarginaliaWidget created for: [^${name}]`);
+		this.component = new Component();
+		console.log(`Escoli: MarginaliaWidget created for: [^${name}] at pos ${pos}`);
 	}
 
 	eq(other: MarginaliaWidget) {
-		const areEqual = this.name === other.name && this.content === other.content;
+		const areEqual = this.name === other.name && this.content === other.content && this.pos === other.pos;
 		console.log(`Escoli: eq called for [^${this.name}]. Are equal: ${areEqual}`);
 		return areEqual;
 	}
 
-	toDOM(view: EditorView): HTMLElement {
+	toDOM(view: EditorView): HTMLElement { // Changed back to synchronous
 		console.log(`Escoli: toDOM called for: [^${this.name}]`);
 		const refEl = createSpan();
 		refEl.createEl("sup", {
@@ -35,37 +43,82 @@ class MarginaliaWidget extends WidgetType {
 		});
 
 		this.noteEl = document.body.createDiv({ cls: "escoli-note" });
-		this.noteEl.innerHTML = this.content;
 
-		const positionNote = () => {
-			if (!this.noteEl) return;
-			const rect = refEl.getBoundingClientRect();
-			const noteWidth = this.noteEl.offsetWidth;
-			const left = rect.right + 10;
+		// Trigger markdown rendering asynchronously, but don't await it here
+		this.renderMarkdownContent();
 
-			if (left + noteWidth > window.innerWidth) {
-				this.noteEl.style.left = `${rect.left - noteWidth - 10}px`;
+		// Find the scroller and sizer elements
+		const editorEl = view.dom;
+		this.scrollerEl = editorEl.querySelector(".cm-scroller");
+		const sizerEl = editorEl.querySelector(".cm-sizer");
+
+		if (!this.scrollerEl || !sizerEl) {
+			console.error("Escoli: Could not find .cm-scroller or .cm-sizer elements.");
+			return refEl;
+		}
+
+		this.positionNoteHandler = () => {
+			if (!this.noteEl || !this.scrollerEl) return;
+
+			const refCoords = view.coordsAtPos(this.pos);
+			if (!refCoords) {
+				// Element is out of view or not rendered yet
+				this.noteEl.style.display = 'none';
+				return;
 			} else {
-				this.noteEl.style.left = `${left}px`;
+				this.noteEl.style.display = '';
 			}
-			this.noteEl.style.top = `${rect.top}px`;
+
+			const sizerRect = sizerEl.getBoundingClientRect();
+
+			// Calculate top based on the reference element's viewport position, centered vertically
+			const top = refCoords.top + (refEl.offsetHeight / 2) - (this.noteEl.offsetHeight / 2);
+
+			// Calculate left to be in the right margin of the sizer
+			const left = sizerRect.right + 20; // 20px margin from the sizer's right edge
+
+			this.noteEl.style.left = `${left}px`;
+			this.noteEl.style.top = `${top}px`;
 		};
 
-		refEl.addEventListener("mouseenter", () => {
-			if (!this.noteEl) return;
-			positionNote();
-			this.noteEl.classList.add("is-visible");
+		// Defer positioning until the next animation frame to ensure refEl has been rendered.
+		requestAnimationFrame(() => {
+			this.positionNoteHandler?.();
+			// Add a small timeout as a fallback for initial rendering issues
+			setTimeout(() => {
+				this.positionNoteHandler?.();
+			}, 200);
 		});
 
-		refEl.addEventListener("mouseleave", () => {
-			this.noteEl?.classList.remove("is-visible");
-		});
+		// Add scroll listener to reposition notes
+		this.scrollerEl.addEventListener("scroll", this.positionNoteHandler);
+		// Add resize listener to reposition notes
+		window.addEventListener("resize", this.positionNoteHandler);
 
 		return refEl;
 	}
 
+	private async renderMarkdownContent() {
+		if (this.noteEl) {
+			await MarkdownRenderer.render(
+				this.app,
+				this.content,
+				this.noteEl,
+				this.sourcePath ?? "",
+				this.component,
+			);
+		}
+	}
+
 	destroy() {
 		console.log(`Escoli: Destroying widget for: [^${this.name}]`);
+		if (this.scrollerEl && this.positionNoteHandler) {
+			this.scrollerEl.removeEventListener("scroll", this.positionNoteHandler);
+		}
+		if (this.positionNoteHandler) {
+			window.removeEventListener("resize", this.positionNoteHandler);
+		}
+		this.component.unload();
 		this.noteEl?.remove();
 	}
 }
@@ -154,7 +207,10 @@ export function buildEscoliViewPlugin(plugin: EscoliPlugin) {
 								Decoration.replace({
 									widget: new MarginaliaWidget(
 										name,
-										footnotes.get(name)!
+										footnotes.get(name)!,
+										pos,
+										plugin.app,
+										plugin.app.workspace.getActiveFile()?.path
 									),
 								})
 							);
