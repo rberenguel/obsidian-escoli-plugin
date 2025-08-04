@@ -12,8 +12,49 @@
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	border-radius: 4px;
 	pointer-events: none; /* Start with no interaction */
-	white-space: pre-wrap; /* Preserve whitespace and respect newlines */
 	transition: top 0.2s ease-out, left 0.2s ease-out;
+}
+
+/* Style for the Escoli footnote reference in the text (visual only). */
+.escoli-footref-visual {
+	position: relative;
+	opacity: 0; /* Hide the original text */
+	font-size: 0; /* Make original text take up no visual space */
+	cursor: pointer;
+}
+
+/*
+.escoli-footref-visual::before {
+	content: "‹" attr(data-footnotenumber) " \u261E›"; 
+	position: static; 
+	color: var(--text-accent); 
+	font-size: 0.85em; 
+	font-weight: bold;
+	vertical-align: super; 
+	white-space: nowrap;
+	pointer-events: none; 
+}
+*/
+
+/* The container is no longer needed for positioning, but can be useful for targeting. */
+.escoli-footref-mark {
+	position: relative;
+	color: transparent; /* Hide the original text */
+	vertical-align: super;
+	font-weight: bold;
+	margin-left: 4px; /* Add a slight space to the left */
+	cursor: pointer;
+}
+
+.escoli-footref-mark::before {
+	content: "‹" attr(data-footnotenumber) " ☞›"; /* Footnote number and right-pointing finger */
+	position: absolute;
+	color: var(--code-function); /* Accent color */
+	font-size: 0.85em; /* Larger font size */
+	left: 0;
+	top: 0;
+	white-space: nowrap;
+	pointer-events: none; /* Allow cursor interaction with underlying text */
 }
 
 /* The container is no longer needed for positioning, but can be useful for targeting. */
