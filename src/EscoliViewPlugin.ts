@@ -11,51 +11,28 @@ import EscoliPlugin from "../main";
 import { App, MarkdownRenderer, Component } from "obsidian";
 
 class MarginaliaWidget extends WidgetType {
-	private noteEl: HTMLElement | null = null;
+	noteEl: HTMLElement | null = null;
 	private contentEl: HTMLElement | null = null;
-	private scrollerEl: HTMLElement | null = null;
-	private positionNoteHandler: (() => void) | null = null;
 	private component: Component;
-	private originalNoteWidth: number = 220;
-	private readonly MIN_NOTE_WIDTH: number = 100;
 
 	constructor(
-		private readonly name: string,
+		public readonly sourcePath: string | undefined,
+		readonly pos: number,
 		private readonly content: string,
-		private readonly pos: number,
 		private readonly app: App,
-		private readonly sourcePath: string | undefined,
 		private readonly footnoteNumber: number,
 		private readonly displayName: string,
+		private readonly pluginView: EscoliViewPlugin,
 	) {
 		super();
 		this.component = new Component();
-		// CHANGED: Use `registerEvent` to correctly manage the event listener lifecycle.
-		this.component.registerEvent(
-			this.app.workspace.on('active-leaf-change', this.updateNoteVisibility)
-		);
 	}
 
 	eq(other: MarginaliaWidget) {
-		// CHANGED: Added position check. This forces the widget to be
-		// redrawn if the reference moves, even by one line.
-		return this.name === other.name &&
-			   this.displayName === other.displayName &&
-			   this.footnoteNumber === other.footnoteNumber &&
-			   this.pos === other.pos;
-	}
-
-
-	private updateNoteVisibility = () => {
-		if (!this.noteEl) return;
-		const activeFile = this.app.workspace.getActiveFile();
-		const isNoteInActiveFile = activeFile && activeFile.path === this.sourcePath;
-
-		if (isNoteInActiveFile) {
-			this.positionNoteHandler?.();
-		} else {
-			this.noteEl.style.display = 'none';
-		}
+		return this.sourcePath === other.sourcePath &&
+			this.displayName === other.displayName &&
+			this.footnoteNumber === other.footnoteNumber &&
+			this.pos === other.pos;
 	}
 
 	toDOM(view: EditorView): HTMLElement {
@@ -63,192 +40,253 @@ class MarginaliaWidget extends WidgetType {
 		supEl.dataset.footnotenumber = `${this.footnoteNumber}`;
 
 		this.noteEl = document.body.createDiv({ cls: "escoli-note" });
-
 		const processedName = this.displayName.replace(/-/g, ' ');
-
-		const ht = this.noteEl.createDiv({
-			cls: "escoli-note-header",
-
-		});
-		ht.createSpan({
-			cls: "escoli-note-header-number",
-			text: `${this.footnoteNumber}:`
-		})
-		ht.createSpan({
-			cls: "escoli-note-header-title",
-			text: `${processedName}`
-		})
-
+		const headerText = `${this.footnoteNumber}: ${processedName}`;
+		this.noteEl.createDiv({ cls: "escoli-note-header", text: headerText });
 		this.contentEl = this.noteEl.createDiv({ cls: "escoli-note-content" });
+
 		this.renderMarkdownContent();
-
-		const editorEl = view.dom;
-		this.scrollerEl = editorEl.querySelector(".cm-scroller");
-		const sizerEl = editorEl.querySelector(".cm-sizer");
-
-		if (!this.scrollerEl || !sizerEl) {
-			return supEl;
-		}
-
-		const computedStyle = window.getComputedStyle(this.noteEl);
-		this.originalNoteWidth = parseFloat(computedStyle.width) || 220;
-
-		this.positionNoteHandler = () => {
-			const activeFile = this.app.workspace.getActiveFile();
-			const isNoteInActiveFile = activeFile && activeFile.path === this.sourcePath;
-			
-			if (!isNoteInActiveFile) {
-				if(this.noteEl) this.noteEl.style.display = 'none';
-				return;
-			}
-
-			if (!this.noteEl || !this.scrollerEl) return;
-			const refCoords = view.coordsAtPos(this.pos);
-			if (!refCoords) {
-				this.noteEl.style.display = 'none';
-				return;
-			}
-			this.noteEl.style.display = '';
-
-			const sizerRect = sizerEl.getBoundingClientRect();
-			const sizerComputedStyle = window.getComputedStyle(sizerEl);
-			const sizerMarginRight = parseFloat(sizerComputedStyle.marginRight) || 0;
-			const top = refCoords.top - (this.noteEl.offsetHeight / 2);
-			const left = sizerRect.right + 20;
-			const availableSpace = sizerMarginRight - 20;
-
-			if (availableSpace < this.MIN_NOTE_WIDTH) {
-				this.noteEl.style.display = 'none';
-			} else {
-				this.noteEl.style.display = '';
-				this.noteEl.style.width = `${Math.min(this.originalNoteWidth, availableSpace)}px`;
-			}
-
-			this.noteEl.style.left = `${left}px`;
-			this.noteEl.style.top = `${top}px`;
-		};
-
-		requestAnimationFrame(() => this.positionNoteHandler?.());
-
-		this.scrollerEl.addEventListener("scroll", this.positionNoteHandler);
-		window.addEventListener("resize", this.positionNoteHandler);
-
 		return supEl;
+	}
+
+	getLayoutInput(view: EditorView): { idealTop: number, height: number } | null {
+		if (!this.noteEl) return null;
+		const refCoords = view.coordsAtPos(this.pos);
+		if (!refCoords) return null;
+
+		return {
+			idealTop: refCoords.top - (this.noteEl.offsetHeight / 2),
+			height: this.noteEl.offsetHeight,
+		};
+	}
+
+	applyPosition(top: number, view: EditorView) {
+    if (!this.noteEl) return;
+    const sizerEl = view.dom.querySelector(".cm-sizer");
+    if (!sizerEl) return;
+
+    // --- Logic to handle small margins ---
+    const sizerRect = sizerEl.getBoundingClientRect();
+    const sizerComputedStyle = window.getComputedStyle(sizerEl);
+    const sizerMarginRight = parseFloat(sizerComputedStyle.marginRight) || 0;
+    
+    // Define constants for note sizing
+    const MIN_NOTE_WIDTH = 100;
+    const ORIGINAL_NOTE_WIDTH = 220;
+    const NOTE_MARGIN = 20;
+    
+    const availableSpace = sizerMarginRight - NOTE_MARGIN;
+
+    if (availableSpace < MIN_NOTE_WIDTH) {
+        this.hide();
+        return;
+    }
+    
+    this.noteEl.style.width = `${Math.min(ORIGINAL_NOTE_WIDTH, availableSpace)}px`;
+    // --- End of added logic ---
+    
+    const left = sizerRect.right + NOTE_MARGIN;
+
+    this.noteEl.style.display = '';
+    this.noteEl.style.left = `${left}px`;
+    this.noteEl.style.top = `${top}px`;
+}
+
+	hide() {
+		if (this.noteEl) this.noteEl.style.display = 'none';
 	}
 
 	private async renderMarkdownContent() {
 		if (this.contentEl) {
 			await MarkdownRenderer.render(this.app, this.content, this.contentEl, this.sourcePath ?? "", this.component);
+			this.pluginView.scheduleLayout();
 		}
 	}
 
 	destroy() {
 		this.component.unload();
-
-		if (this.scrollerEl && this.positionNoteHandler) {
-			this.scrollerEl.removeEventListener("scroll", this.positionNoteHandler);
-		}
-		if (this.positionNoteHandler) {
-			window.removeEventListener("resize", this.positionNoteHandler);
-		}
 		this.noteEl?.remove();
+	}
+}
+
+class EscoliViewPlugin {
+	decorations: DecorationSet;
+	private activeWidgets: MarginaliaWidget[] = [];
+	private layoutTimeout: number | null = null;
+	private component: Component;
+
+	constructor(private view: EditorView, private plugin: EscoliPlugin) {
+    this.component = new Component();
+    this.decorations = Decoration.none;
+
+    // Register all event listeners for layout updates
+    this.component.registerDomEvent(this.view.scrollDOM, 'scroll', this.scheduleLayout);
+    this.component.registerDomEvent(window, 'resize', this.scheduleLayout);
+    this.component.registerEvent(
+        this.plugin.app.workspace.on('active-leaf-change', this.scheduleLayout)
+    );
+
+    // Add a ResizeObserver on the editor sizer element for robust layout updates
+    const sizerEl = this.view.dom.querySelector(".cm-sizer");
+    if (sizerEl) {
+        const observer = new ResizeObserver(this.scheduleLayout);
+        observer.observe(sizerEl);
+        // Ensure the observer is disconnected when the plugin view is destroyed
+        this.component.register(() => observer.disconnect());
+    }
+
+    // Defer the initial dispatch to the next event loop tick. This allows the
+    // initial view update to complete before we trigger a new one, avoiding the error.
+    setTimeout(() => this.view.dispatch(), 0);
+}
+	update(update: ViewUpdate) {
+		if (update.docChanged || update.viewportChanged || update.selectionSet) {
+			this.updateDecorations();
+		}
+	}
+
+	scheduleLayout = () => {
+		if (this.layoutTimeout) window.clearTimeout(this.layoutTimeout);
+		this.layoutTimeout = window.setTimeout(this.layoutMarginalia, 100);
+	}
+
+	updateDecorations() {
+		this.activeWidgets = [];
+		this.decorations = this.buildDecorations(this.view);
+		this.scheduleLayout();
+	}
+
+	layoutMarginalia = () => {
+		const activeFile = this.plugin.app.workspace.getActiveFile();
+		if (!activeFile) {
+			this.activeWidgets.forEach(w => w.hide());
+			return;
+		}
+
+		const placedNotes: { top: number, bottom: number }[] = [];
+		const PADDING_BETWEEN_NOTES = 5;
+
+		for (const widget of this.activeWidgets) {
+			if (widget.sourcePath !== activeFile.path) {
+				widget.hide();
+				continue;
+			}
+
+			const layoutInput = widget.getLayoutInput(this.view);
+			if (!layoutInput) {
+				widget.hide();
+				continue;
+			}
+
+			let { idealTop, height } = layoutInput;
+			let finalTop = idealTop;
+
+			let adjusted = true;
+			while (adjusted) {
+				adjusted = false;
+				for (const placed of placedNotes) {
+					if (finalTop < placed.bottom + PADDING_BETWEEN_NOTES && finalTop + height + PADDING_BETWEEN_NOTES > placed.top) {
+						finalTop = placed.bottom + PADDING_BETWEEN_NOTES;
+						adjusted = true;
+						break;
+					}
+				}
+			}
+
+			widget.applyPosition(finalTop, this.view);
+			placedNotes.push({ top: finalTop, bottom: finalTop + height });
+		}
+	}
+
+	buildDecorations(view: EditorView): DecorationSet {
+		const builder = new RangeSetBuilder<Decoration>();
+		const doc = view.state.doc;
+		const footnotes = new Map<string, string>();
+		const definitionLines = new Set<number>();
+		const prefix = this.plugin.settings.prefix;
+		const currentSelection = view.state.selection.main;
+		const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path;
+
+		for (let i = 1; i <= doc.lines; i++) {
+			const line = doc.line(i);
+			const markerEndIndex = line.text.indexOf(']:');
+			if (line.text.startsWith('[^') && markerEndIndex > 2) {
+				const name = line.text.substring(2, markerEndIndex);
+				if (name.startsWith(prefix)) {
+					definitionLines.add(line.number);
+					let content = [line.text.substring(markerEndIndex + 2).trimStart()];
+					let nextLineNum = i + 1;
+					while (nextLineNum <= doc.lines) {
+						const nextLine = doc.line(nextLineNum);
+						if (nextLine.text.trim() === "" || nextLine.text.startsWith("    ") || nextLine.text.startsWith("\t")) {
+							content.push(nextLine.text.replace(/^(\s{4}|\t)/, ""));
+							definitionLines.add(nextLine.number);
+							nextLineNum++;
+						} else {
+							break;
+						}
+					}
+					footnotes.set(name, content.join("\n").trim());
+					i = nextLineNum - 1;
+				}
+			}
+		}
+
+		if (footnotes.size === 0) return builder.finish();
+
+		const refRegex = /\[\^.+?\]/g;
+		const displayedFootnotes = new Map<string, number>();
+		let footnoteCounter = 1;
+
+		for (const { from, to } of view.visibleRanges) {
+			const text = doc.sliceString(from, to);
+			let match;
+			while ((match = refRegex.exec(text))) {
+				const name = match[0].substring(2, match[0].length - 1);
+				const matchStart = from + match.index;
+				const matchEnd = matchStart + match[0].length;
+				const line = doc.lineAt(matchStart).number;
+
+				if (footnotes.has(name) && !definitionLines.has(line)) {
+					const selectionOverlaps = currentSelection.from < matchEnd && currentSelection.to > matchStart;
+
+					if (!selectionOverlaps) {
+						if (!displayedFootnotes.has(name)) {
+							displayedFootnotes.set(name, footnoteCounter++);
+						}
+						const footnoteNumber = displayedFootnotes.get(name)!;
+						const displayName = name.substring(prefix.length);
+
+						const widget = new MarginaliaWidget(
+							activeFilePath,
+							matchStart,
+							footnotes.get(name)!,
+							this.plugin.app,
+							footnoteNumber,
+							displayName,
+							this
+						);
+						this.activeWidgets.push(widget);
+
+						builder.add(matchStart, matchEnd, Decoration.replace({ widget }));
+					}
+				}
+			}
+		}
+		return builder.finish();
+	}
+
+	destroy() {
+		this.component.unload();
 	}
 }
 
 export function buildEscoliViewPlugin(plugin: EscoliPlugin) {
 	return ViewPlugin.fromClass(
-		class {
-			decorations: DecorationSet;
-
+		// Pass the plugin instance into the ViewPlugin's constructor
+		class extends EscoliViewPlugin {
 			constructor(view: EditorView) {
-				this.decorations = this.buildDecorations(view);
-			}
-
-			update(update: ViewUpdate) {
-				if (update.docChanged || update.viewportChanged || update.selectionSet) {
-					this.decorations = this.buildDecorations(update.view);
-				}
-			}
-
-			buildDecorations(view: EditorView): DecorationSet {
-				const builder = new RangeSetBuilder<Decoration>();
-				const doc = view.state.doc;
-				const footnotes = new Map<string, string>();
-				const definitionLines = new Set<number>();
-				const prefix = plugin.settings.prefix;
-				const currentSelection = view.state.selection.main;
-
-				for (let i = 1; i <= doc.lines; i++) {
-					const line = doc.line(i);
-					const match = line.text.match(/^\[\^([^\]]+)\]:\s*(.*)/);
-					if (match) {
-						const name = match[1];
-						if (name.startsWith(prefix)) {
-							definitionLines.add(line.number);
-							let content = [match[2]];
-							let nextLineNum = i + 1;
-							while (nextLineNum <= doc.lines) {
-								const nextLine = doc.line(nextLineNum);
-								if (nextLine.text.trim() === "" || nextLine.text.startsWith("    ") || nextLine.text.startsWith("\t")) {
-									content.push(nextLine.text.replace(/^(\s{4}|\t)/, ""));
-									definitionLines.add(nextLine.number);
-									nextLineNum++;
-								} else {
-									break;
-								}
-							}
-							footnotes.set(name, content.join("\n").trim());
-							i = nextLineNum - 1;
-						}
-					}
-				}
-
-				if (footnotes.size === 0) return builder.finish();
-
-				const refRegex = /\[\^([^\]]+)\]/g;
-				const displayedFootnotes = new Map<string, number>();
-				let footnoteCounter = 1;
-
-
-				for (const { from, to } of view.visibleRanges) {
-					const text = doc.sliceString(from, to);
-					let match;
-					while ((match = refRegex.exec(text))) {
-						const name = match[1];
-						const matchStart = from + match.index;
-						const matchEnd = matchStart + match[0].length;
-						const line = doc.lineAt(matchStart).number;
-
-						if (footnotes.has(name) && !definitionLines.has(line)) {
-							const selectionOverlaps = currentSelection.from < matchEnd && currentSelection.to > matchStart;
-
-							if (!selectionOverlaps) {
-								if (!displayedFootnotes.has(name)) {
-									displayedFootnotes.set(name, footnoteCounter++);
-								}
-								const footnoteNumber = displayedFootnotes.get(name)!;
-								const displayName = name.substring(plugin.settings.prefix.length);
-
-								builder.add(
-									matchStart,
-									matchEnd,
-									Decoration.replace({
-										widget: new MarginaliaWidget(
-											name,
-											footnotes.get(name)!,
-											matchStart,
-											plugin.app,
-											plugin.app.workspace.getActiveFile()?.path,
-											footnoteNumber,
-											displayName
-										),
-									})
-								);
-							}
-						}
-					}
-				}
-				return builder.finish();
+				super(view, plugin);
 			}
 		},
 		{

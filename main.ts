@@ -17,7 +17,7 @@ export default class EscoliPlugin extends Plugin {
 		await this.loadSettings();
 		this.addSettingTab(new EscoliSettingTab(this.app, this));
 
-		// Register the ViewPlugin for Live Preview. This is the only thing that matters.
+		// Register the ViewPlugin by passing the main plugin instance directly.
 		this.registerEditorExtension(buildEscoliViewPlugin(this));
 	}
 
