@@ -1,0 +1,35 @@
+/* This is the marginalia note itself, now positioned relative to the page. */
+.escoli-note {
+	position: absolute; /* Position will be set by JavaScript */
+	width: 220px;
+	max-width: 300px;
+	padding: 0.5em 1em;
+	font-size: 0.85em;
+	border-left: 2px solid var(--text-faint);
+	color: var(--text-muted);
+	background-color: var(--background-primary);
+	z-index: 100; /* High z-index to appear above other content */
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	border-radius: 4px;
+	pointer-events: none; /* Start with no interaction */
+	opacity: 0; /* Hidden by default */
+	visibility: hidden;
+	transition:
+		opacity 0.15s ease-in-out,
+		visibility 0.15s ease-in-out;
+}
+
+.escoli-note.is-visible {
+	opacity: 1;
+	visibility: visible;
+}
+
+/* The container is no longer needed for positioning, but can be useful for targeting. */
+.escoli-container {
+	/* No special styling needed anymore */
+}
+
+/* Hide the original rendered footnote list at the bottom of the page. */
+div.footnotes {
+	display: none !important;
+}

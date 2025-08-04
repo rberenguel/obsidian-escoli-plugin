@@ -1,0 +1,10 @@
+{
+	"id": "escoli",
+	"name": "Escoli",
+	"version": "0.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "A plugin for Obsidian to display footnotes as marginalia.",
+	"author": "Ruben Berenguel",
+	"authorUrl": "https://www.mostlymaths.net",
+	"isDesktopOnly": false
+}
