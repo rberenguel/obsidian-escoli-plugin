@@ -4,6 +4,10 @@ An Obsidian plugin to transform your footnotes into elegant, interactive margina
 
 > **Escoli**: Catalan for a scholarly or explanatory note, a gloss, or a _scholium_.
 
+![](https://raw.githubusercontent.com/rberenguel/obsidian-escoli-plugin/main/obsidian-escoli-plugin.png)
+
+> [!WARNING]
+> This plugin is still a bit unstable
 
 ---
 
@@ -29,21 +33,13 @@ Escoli enhances Obsidian's editor by turning a specific subset of your footnotes
     ```
 4.  Define the content for your footnote at the bottom of the note, it is a normal footnote for any other purpose:
     ```markdown
-    [^esc-token-bucket]: A token bucket is an algorithm used in packet-switched computer networks and telecommunications networks. It can be used to check that data transmissions conform to defined limits on bandwidth and burstiness.
+    [^esc-token-bucket]: The Token Bucket algorithm is a flexible and efficient rate-limiting mechanism. It works by filling a bucket with tokens at a fixed rate (e.g., one token per second). Each request consumes a token, and if no tokens are available, the request is rejected.
     ```
-5.  Escoli will instantly render the reference as a numbered marker (`‹1 ☞›`) and display the content in a note in the right margin of your editor.
+5.  Escoli will render the reference as a numbered marker (`‹1 ☞›`) and display the content in a note in the right margin of your editor.
 
 ---
 
 ## Installation
-
-### From the Community Plugins list
-
-*(This is the recommended method.)*
-
-1.  Go to **Settings** > **Community Plugins**.
-2.  Click **Browse** and search for "Escoli".
-3.  Click **Install**, and then once it's finished, click **Enable**.
 
 ### Manual Installation
 

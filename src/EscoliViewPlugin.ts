@@ -79,37 +79,56 @@ class MarginaliaWidget extends WidgetType {
 		};
 	}
 
-	applyPosition(top: number, view: EditorView) {
-		if (!this.noteEl) return;
-		const sizerEl = view.dom.querySelector(".cm-sizer");
-		if (!sizerEl) return;
+	/**
+	 * Sets the position and visibility of the note.
+	 * @returns {boolean} - True if the note was made visible, false otherwise.
+	 */
+	applyPosition(top: number, view: EditorView): boolean {
+		if (!this.noteEl) {
+			this.hide();
+			return false;
+		}
 
-		const sizerRect = sizerEl.getBoundingClientRect();
+		const sizerEl = view.dom.querySelector(".cm-sizer");
+		if (!sizerEl) {
+			this.hide();
+			return false;
+		}
+
 		const sizerComputedStyle = window.getComputedStyle(sizerEl);
 		const sizerMarginRight =
 			parseFloat(sizerComputedStyle.marginRight) || 0;
-
+		const NOTE_MARGIN = 20;
 		const MIN_NOTE_WIDTH = 100;
 		const ORIGINAL_NOTE_WIDTH = 220;
-		const NOTE_MARGIN = 20;
-
 		const availableSpace = sizerMarginRight - NOTE_MARGIN;
 
 		if (availableSpace < MIN_NOTE_WIDTH) {
 			this.hide();
-			return;
+			return false;
 		}
 
+		this.show();
+		
 		this.noteEl.style.width = `${Math.min(ORIGINAL_NOTE_WIDTH, availableSpace)}px`;
+		
+		const sizerRect = sizerEl.getBoundingClientRect();
 		const left = sizerRect.right + NOTE_MARGIN;
-
-		this.noteEl.style.display = "";
 		this.noteEl.style.left = `${left}px`;
 		this.noteEl.style.top = `${top}px`;
+		return true;
 	}
 
 	hide() {
-		if (this.noteEl) this.noteEl.style.display = "none";
+		if (this.noteEl) {
+			this.noteEl.style.opacity = "0";
+		}
+	}
+
+	show() {
+		if (this.noteEl) {
+			this.noteEl.style.opacity = "1";
+		}
 	}
 
 	private async renderMarkdownContent() {
@@ -145,7 +164,6 @@ class EscoliViewPlugin {
 		this.component = new Component();
 		this.decorations = this.buildDecorations(this.view);
 
-		// This listener is essential for repositioning notes on every scroll frame.
 		this.component.registerDomEvent(
 			this.view.scrollDOM,
 			"scroll",
@@ -221,8 +239,12 @@ class EscoliViewPlugin {
 				}
 			}
 
-			widget.applyPosition(finalTop, this.view);
-			placedNotes.push({ top: finalTop, bottom: finalTop + height });
+			const isVisible = widget.applyPosition(finalTop, this.view);
+
+			// Only add visible notes to the collision map.
+			if (isVisible) {
+				placedNotes.push({ top: finalTop, bottom: finalTop + height });
+			}
 		}
 	};
 
