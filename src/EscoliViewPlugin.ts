@@ -10,6 +10,30 @@ import { RangeSetBuilder } from "@codemirror/state";
 import EscoliPlugin from "../main";
 import { App, MarkdownRenderer, Component } from "obsidian";
 
+class FootnoteDefWidget extends WidgetType {
+	constructor(
+		private readonly footnoteNumber: number,
+		private readonly displayName: string,
+	) {
+		super();
+	}
+
+	eq(other: FootnoteDefWidget): boolean {
+		return (
+			this.footnoteNumber === other.footnoteNumber &&
+			this.displayName === other.displayName
+		);
+	}
+
+	toDOM(view: EditorView): HTMLElement {
+		const el = createEl("span", {
+			cls: "escoli-footdef-mark",
+			text: `<${this.footnoteNumber}: ${this.displayName.toUpperCase()} 👁>`,
+		});
+		return el;
+	}
+}
+
 class MarginaliaWidget extends WidgetType {
 	noteEl: HTMLElement | null = null;
 	public supEl: HTMLElement | null = null;
@@ -180,10 +204,13 @@ class EscoliViewPlugin {
 	private layoutTimeout: number | null = null;
 	private component: Component;
 	private footnoteDefs = new Map<string, string>();
-	private footnoteDefLines = new Set<number>();
+	private footnoteDefLocations = new Map<
+		string,
+		{ from: number; to: number }
+	>();
 
 	constructor(
-		private view: EditorView,
+		public view: EditorView,
 		private plugin: EscoliPlugin,
 	) {
 		this.component = new Component();
@@ -234,13 +261,15 @@ class EscoliViewPlugin {
 		this.scheduleLayout();
 	}
 
-    registerWidgetForLayout(widget: MarginaliaWidget) {
-        this.widgetsForLayout.push(widget);
-    }
+	registerWidgetForLayout(widget: MarginaliaWidget) {
+		this.widgetsForLayout.push(widget);
+	}
 
-    unregisterWidgetForLayout(widget: MarginaliaWidget) {
-        this.widgetsForLayout = this.widgetsForLayout.filter(w => w !== widget);
-    }
+	unregisterWidgetForLayout(widget: MarginaliaWidget) {
+		this.widgetsForLayout = this.widgetsForLayout.filter(
+			(w) => w !== widget,
+		);
+	}
 
 	scheduleLayout = () => {
 		if (this.layoutTimeout) window.clearTimeout(this.layoutTimeout);
@@ -310,7 +339,7 @@ class EscoliViewPlugin {
 
 	parseFootnotes(doc: any) {
 		this.footnoteDefs.clear();
-		this.footnoteDefLines.clear();
+		this.footnoteDefLocations.clear();
 		const prefix = this.plugin.settings.prefix;
 
 		for (let i = 1; i <= doc.lines; i++) {
@@ -319,7 +348,9 @@ class EscoliViewPlugin {
 			if (line.text.startsWith("[^") && markerEndIndex > 2) {
 				const name = line.text.substring(2, markerEndIndex);
 				if (name.startsWith(prefix)) {
-					this.footnoteDefLines.add(line.number);
+					const defStartPos = line.from;
+					let defEndPos = line.to;
+
 					let content = [
 						line.text.substring(markerEndIndex + 2).trimStart(),
 					];
@@ -334,13 +365,17 @@ class EscoliViewPlugin {
 							content.push(
 								nextLine.text.replace(/^(\s{4}|\t)/, ""),
 							);
-							this.footnoteDefLines.add(nextLine.number);
+							defEndPos = nextLine.to;
 							nextLineNum++;
 						} else {
 							break;
 						}
 					}
 					this.footnoteDefs.set(name, content.join("\n").trim());
+					this.footnoteDefLocations.set(name, {
+						from: defStartPos,
+						to: defEndPos,
+					});
 					i = nextLineNum - 1;
 				}
 			}
@@ -360,31 +395,56 @@ class EscoliViewPlugin {
 
 		if (this.footnoteDefs.size === 0) return builder.finish();
 
-		const refRegex = /\[\^.+?\]/g;
+		// Create a set of definition start positions for efficient lookup
+		const defStartPositions = new Set(
+			Array.from(this.footnoteDefLocations.values()).map((loc) => loc.from),
+		);
+
+		const refRegex = /\[\^(.+?)\]/g;
 		const displayedFootnotes = new Map<string, number>();
 		let footnoteCounter = 1;
 
+		// First pass: find all references in the visible range to determine which footnotes are active
 		for (const { from, to } of view.visibleRanges) {
 			const text = doc.sliceString(from, to);
 			let match;
 			while ((match = refRegex.exec(text))) {
-				const name = match[0].substring(2, match[0].length - 1);
+				const name = match[1];
+				const matchPos = from + match.index;
+
+				// This is a definition, not a reference, so we skip it in this pass.
+				if (defStartPositions.has(matchPos)) {
+					continue;
+				}
+
+				if (this.footnoteDefs.has(name)) {
+					if (!displayedFootnotes.has(name)) {
+						displayedFootnotes.set(name, footnoteCounter++);
+					}
+				}
+			}
+		}
+
+		// Second pass: build decorations for references
+		for (const { from, to } of view.visibleRanges) {
+			const text = doc.sliceString(from, to);
+			let match;
+			while ((match = refRegex.exec(text))) {
+				const name = match[1];
 				const matchStart = from + match.index;
 				const matchEnd = matchStart + match[0].length;
-				const line = doc.lineAt(matchStart).number;
 
-				if (
-					this.footnoteDefs.has(name) &&
-					!this.footnoteDefLines.has(line)
-				) {
+				// It's a definition, not a reference. Skip.
+				if (defStartPositions.has(matchStart)) {
+					continue;
+				}
+
+				if (this.footnoteDefs.has(name)) {
 					const selectionOverlaps =
 						currentSelection.from < matchEnd &&
 						currentSelection.to > matchStart;
 
-					if (!selectionOverlaps) {
-						if (!displayedFootnotes.has(name)) {
-							displayedFootnotes.set(name, footnoteCounter++);
-						}
+					if (!selectionOverlaps && displayedFootnotes.has(name)) {
 						const footnoteNumber = displayedFootnotes.get(name)!;
 						let displayName = name.substring(prefix.length);
 						let position: "left" | "right" = "right";
@@ -413,12 +473,59 @@ class EscoliViewPlugin {
 				}
 			}
 		}
+
+		// Third pass: decorate the definitions themselves
+		for (const [
+			name,
+			{ from, to },
+		] of this.footnoteDefLocations.entries()) {
+			if (displayedFootnotes.has(name)) {
+				const selectionOverlaps =
+					currentSelection.from <= to && currentSelection.to >= from;
+
+				if (!selectionOverlaps) {
+					const footnoteNumber = displayedFootnotes.get(name)!;
+					const displayName = name
+						.substring(prefix.length)
+						.replace(/^l-/, "");
+
+					const firstLine = doc.lineAt(from);
+
+					// Replace only the first line with the widget
+					builder.add(
+						firstLine.from,
+						firstLine.to,
+						Decoration.replace({
+							widget: new FootnoteDefWidget(
+								footnoteNumber,
+								displayName,
+							),
+						}),
+					);
+
+					// Hide subsequent lines
+					let currentPos = firstLine.to + 1;
+					while (currentPos <= to) {
+						const currentLine = doc.lineAt(currentPos);
+						builder.add(
+							currentLine.from,
+							currentLine.from,
+							Decoration.line({
+								class: "escoli-hidden-line",
+							}),
+						);
+						currentPos = currentLine.to + 1;
+					}
+				}
+			}
+		}
+
 		return builder.finish();
 	}
 
 	destroy() {
 		this.component.unload();
-		[...this.widgetsForLayout].forEach(w => w.destroy());
+		[...this.widgetsForLayout].forEach((w) => w.destroy());
 	}
 }
 

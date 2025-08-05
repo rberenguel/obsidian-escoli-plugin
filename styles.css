@@ -68,3 +68,23 @@
 div.footnotes {
 	display: none !important;
 }
+
+/* Styles for the compact footnote definition marker */
+.escoli-footdef-mark {
+	color: var(--text-muted);
+	cursor: pointer;
+	font-family: var(--font-monospace);
+	font-size: var(--font-smaller);
+	padding: 2px 4px;
+	border-radius: 4px;
+	background-color: var(--background-secondary-alt);
+}
+
+.escoli-footdef-mark:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Hides the subsequent lines of a multi-line footnote definition */
+.cm-line.escoli-hidden-line {
+	display: none;
+}
