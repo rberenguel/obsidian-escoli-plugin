@@ -19,6 +19,7 @@ Escoli enhances Obsidian's editor by turning a specific subset of your footnotes
 * **Editable Markers**: The footnote references in your text are replaced by clean, numbered markers (`‹1 ☞›`). Clicking on a marker instantly reveals the original `[^esc-note]` text so you can edit it seamlessly.
 * **Smart Note Titles**: Marginal notes are automatically titled with a sequential number and the name of your reference. For example, a footnote named `[^esc-key-concept]` will appear in the margin with the title `1: KEY CONCEPT`.
 * **Customizable Prefix**: You control which footnotes become marginalia. By default, only footnotes starting with `[^esc-...]` are transformed, but you can configure this prefix in the settings.
+* **Configurable Note Placement**: By default, notes appear in the right margin. To place a specific note in the left margin (if space is available), simply start its identifier with `l-`. For example, `[^esc-l-my-left-note]`.
 * **Clean Workspace**: The plugin automatically hides the standard footnote list at the bottom of the page in Reading View, keeping your notes tidy.
 
 ---

@@ -24,6 +24,7 @@ class MarginaliaWidget extends WidgetType {
 		private readonly footnoteNumber: number,
 		private readonly displayName: string,
 		private readonly pluginView: EscoliViewPlugin,
+		public readonly position: "left" | "right",
 	) {
 		super();
 		this.component = new Component();
@@ -34,7 +35,8 @@ class MarginaliaWidget extends WidgetType {
 			this.sourcePath === other.sourcePath &&
 			this.displayName === other.displayName &&
 			this.footnoteNumber === other.footnoteNumber &&
-			this.content === other.content
+			this.content === other.content &&
+			this.position === other.position
 		);
 	}
 
@@ -96,12 +98,19 @@ class MarginaliaWidget extends WidgetType {
 		}
 
 		const sizerComputedStyle = window.getComputedStyle(sizerEl);
-		const sizerMarginRight =
-			parseFloat(sizerComputedStyle.marginRight) || 0;
 		const NOTE_MARGIN = 20;
 		const MIN_NOTE_WIDTH = 100;
 		const ORIGINAL_NOTE_WIDTH = 220;
-		const availableSpace = sizerMarginRight - NOTE_MARGIN;
+
+		let availableSpace: number;
+		if (this.position === "right") {
+			availableSpace =
+				parseFloat(sizerComputedStyle.marginRight) || 0;
+		} else {
+			availableSpace =
+				parseFloat(sizerComputedStyle.marginLeft) || 0;
+		}
+		availableSpace -= NOTE_MARGIN;
 
 		if (availableSpace < MIN_NOTE_WIDTH) {
 			this.hide();
@@ -109,12 +118,18 @@ class MarginaliaWidget extends WidgetType {
 		}
 
 		this.show();
-		
-		this.noteEl.style.width = `${Math.min(ORIGINAL_NOTE_WIDTH, availableSpace)}px`;
-		
+
+		const noteWidth = Math.min(ORIGINAL_NOTE_WIDTH, availableSpace);
+		this.noteEl.style.width = `${noteWidth}px`;
+
 		const sizerRect = sizerEl.getBoundingClientRect();
-		const left = sizerRect.right + NOTE_MARGIN;
-		this.noteEl.style.left = `${left}px`;
+		if (this.position === "right") {
+			const left = sizerRect.right + NOTE_MARGIN;
+			this.noteEl.style.left = `${left}px`;
+		} else {
+			const right = sizerRect.left - NOTE_MARGIN;
+			this.noteEl.style.left = `${right - noteWidth}px`;
+		}
 		this.noteEl.style.top = `${top}px`;
 		return true;
 	}
@@ -156,43 +171,59 @@ class EscoliViewPlugin {
 	private widgetsForLayout: MarginaliaWidget[] = [];
 	private layoutTimeout: number | null = null;
 	private component: Component;
+	private footnoteDefs = new Map<string, string>();
+	private footnoteDefLines = new Set<number>();
 
 	constructor(
 		private view: EditorView,
 		private plugin: EscoliPlugin,
 	) {
 		this.component = new Component();
+		this.parseFootnotes(this.view.state.doc);
 		this.decorations = this.buildDecorations(this.view);
 
 		this.component.registerDomEvent(
 			this.view.scrollDOM,
 			"scroll",
-			this.scheduleLayout
+			this.scheduleLayout,
 		);
-		
+
 		this.component.registerDomEvent(window, "resize", this.scheduleLayout);
-		
+
 		this.component.registerEvent(
-			this.plugin.app.workspace.on(
-				"active-leaf-change",
-				() => {
-					this.decorations = this.buildDecorations(this.view);
-					this.scheduleLayout();
-				}
-			),
+			this.plugin.app.workspace.on("active-leaf-change", () => {
+				this.parseFootnotes(this.view.state.doc);
+				this.decorations = this.buildDecorations(this.view);
+				this.scheduleLayout();
+			}),
 		);
 	}
-	
+
 	update(update: ViewUpdate) {
-		if (
-			update.docChanged ||
+		const needsReparse = update.docChanged;
+		const needsRedecorate =
+			needsReparse ||
 			update.viewportChanged ||
 			update.geometryChanged ||
-            update.selectionSet
-		) {
-			this.decorations = this.buildDecorations(update.view);
-            this.scheduleLayout();
+			update.selectionSet;
+
+		if (needsReparse) {
+			this.parseFootnotes(update.view.state.doc);
 		}
+
+		if (needsRedecorate) {
+			const newDecorations = this.buildDecorations(update.view);
+			// Only update decorations if the new set is not empty,
+			// or if we can confirm there are no footnotes left in the document.
+			// This prevents transient states during scrolling from wiping out the notes.
+			if (newDecorations.size > 0 || this.footnoteDefs.size === 0) {
+				this.decorations = newDecorations;
+			}
+		}
+
+		// Always schedule a layout, as things might need to be repositioned
+		// even if the decorations themselves haven't changed.
+		this.scheduleLayout();
 	}
 
     registerWidgetForLayout(widget: MarginaliaWidget) {
@@ -209,57 +240,70 @@ class EscoliViewPlugin {
 	};
 
 	layoutMarginalia = () => {
-		const placedNotes: { top: number; bottom: number }[] = [];
+		const placedNotesLeft: { top: number; bottom: number }[] = [];
+		const placedNotesRight: { top: number; bottom: number }[] = [];
 		const PADDING_BETWEEN_NOTES = 5;
 
 		this.widgetsForLayout.sort((a, b) => a.pos - b.pos);
 
-		for (const widget of this.widgetsForLayout) {
-			const layoutInput = widget.getLayoutInput();
-			if (!layoutInput) {
-				widget.hide();
-				continue;
-			}
+		const leftWidgets = this.widgetsForLayout.filter(
+			(w) => w.position === "left",
+		);
+		const rightWidgets = this.widgetsForLayout.filter(
+			(w) => w.position === "right",
+		);
 
-			let { idealTop, height } = layoutInput;
-			let finalTop = idealTop;
+		const layoutColumn = (
+			widgets: MarginaliaWidget[],
+			placedNotes: { top: number; bottom: number }[],
+		) => {
+			for (const widget of widgets) {
+				const layoutInput = widget.getLayoutInput();
+				if (!layoutInput) {
+					widget.hide();
+					continue;
+				}
 
-			let adjusted = true;
-			while (adjusted) {
-				adjusted = false;
-				for (const placed of placedNotes) {
-					if (
-						finalTop < placed.bottom + PADDING_BETWEEN_NOTES &&
-						finalTop + height + PADDING_BETWEEN_NOTES > placed.top
-					) {
-						finalTop = placed.bottom + PADDING_BETWEEN_NOTES;
-						adjusted = true;
-						break;
+				let { idealTop, height } = layoutInput;
+				let finalTop = idealTop;
+
+				let adjusted = true;
+				while (adjusted) {
+					adjusted = false;
+					for (const placed of placedNotes) {
+						if (
+							finalTop <
+								placed.bottom + PADDING_BETWEEN_NOTES &&
+							finalTop + height + PADDING_BETWEEN_NOTES >
+								placed.top
+						) {
+							finalTop = placed.bottom + PADDING_BETWEEN_NOTES;
+							adjusted = true;
+							break;
+						}
 					}
 				}
-			}
 
-			const isVisible = widget.applyPosition(finalTop, this.view);
+				const isVisible = widget.applyPosition(finalTop, this.view);
 
-			// Only add visible notes to the collision map.
-			if (isVisible) {
-				placedNotes.push({ top: finalTop, bottom: finalTop + height });
+				// Only add visible notes to the collision map.
+				if (isVisible) {
+					placedNotes.push({
+						top: finalTop,
+						bottom: finalTop + height,
+					});
+				}
 			}
-		}
+		};
+
+		layoutColumn(leftWidgets, placedNotesLeft);
+		layoutColumn(rightWidgets, placedNotesRight);
 	};
 
-	buildDecorations(view: EditorView): DecorationSet {
-        if (view.visibleRanges.length === 0 && view.state.doc.length > 0) {
-            return this.decorations;
-        }
-
-		const builder = new RangeSetBuilder<Decoration>();
-		const doc = view.state.doc;
-		const footnotes = new Map<string, string>();
-		const definitionLines = new Set<number>();
+	parseFootnotes(doc: any) {
+		this.footnoteDefs.clear();
+		this.footnoteDefLines.clear();
 		const prefix = this.plugin.settings.prefix;
-		const currentSelection = view.state.selection.main;
-		const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path;
 
 		for (let i = 1; i <= doc.lines; i++) {
 			const line = doc.line(i);
@@ -267,7 +311,7 @@ class EscoliViewPlugin {
 			if (line.text.startsWith("[^") && markerEndIndex > 2) {
 				const name = line.text.substring(2, markerEndIndex);
 				if (name.startsWith(prefix)) {
-					definitionLines.add(line.number);
+					this.footnoteDefLines.add(line.number);
 					let content = [
 						line.text.substring(markerEndIndex + 2).trimStart(),
 					];
@@ -282,19 +326,31 @@ class EscoliViewPlugin {
 							content.push(
 								nextLine.text.replace(/^(\s{4}|\t)/, ""),
 							);
-							definitionLines.add(nextLine.number);
+							this.footnoteDefLines.add(nextLine.number);
 							nextLineNum++;
 						} else {
 							break;
 						}
 					}
-					footnotes.set(name, content.join("\n").trim());
+					this.footnoteDefs.set(name, content.join("\n").trim());
 					i = nextLineNum - 1;
 				}
 			}
 		}
+	}
 
-		if (footnotes.size === 0) return builder.finish();
+	buildDecorations(view: EditorView): DecorationSet {
+		if (view.visibleRanges.length === 0 && view.state.doc.length > 0) {
+			return this.decorations;
+		}
+
+		const builder = new RangeSetBuilder<Decoration>();
+		const doc = view.state.doc;
+		const prefix = this.plugin.settings.prefix;
+		const currentSelection = view.state.selection.main;
+		const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path;
+
+		if (this.footnoteDefs.size === 0) return builder.finish();
 
 		const refRegex = /\[\^.+?\]/g;
 		const displayedFootnotes = new Map<string, number>();
@@ -309,7 +365,10 @@ class EscoliViewPlugin {
 				const matchEnd = matchStart + match[0].length;
 				const line = doc.lineAt(matchStart).number;
 
-				if (footnotes.has(name) && !definitionLines.has(line)) {
+				if (
+					this.footnoteDefs.has(name) &&
+					!this.footnoteDefLines.has(line)
+				) {
 					const selectionOverlaps =
 						currentSelection.from < matchEnd &&
 						currentSelection.to > matchStart;
@@ -319,18 +378,24 @@ class EscoliViewPlugin {
 							displayedFootnotes.set(name, footnoteCounter++);
 						}
 						const footnoteNumber = displayedFootnotes.get(name)!;
-						const displayName = name.substring(prefix.length);
+						let displayName = name.substring(prefix.length);
+						let position: "left" | "right" = "right";
+						if (displayName.startsWith("l-")) {
+							position = "left";
+							displayName = displayName.substring(2);
+						}
 
 						const widget = new MarginaliaWidget(
 							activeFilePath,
 							matchStart,
-							footnotes.get(name)!,
+							this.footnoteDefs.get(name)!,
 							this.plugin.app,
 							footnoteNumber,
 							displayName,
 							this,
+							position,
 						);
-						
+
 						builder.add(
 							matchStart,
 							matchEnd,
