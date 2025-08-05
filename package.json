@@ -1,6 +1,6 @@
 {
 	"name": "escoli",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "A plugin for Obsidian to display footnotes as marginalia.",
 	"main": "main.js",
 	"scripts": {
