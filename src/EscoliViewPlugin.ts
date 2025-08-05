@@ -28,7 +28,7 @@ class FootnoteDefWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		const el = createEl("span", {
 			cls: "escoli-footdef-mark",
-			text: `<${this.footnoteNumber}: ${this.displayName.toUpperCase()} 👁>`,
+			text: `‹↳${this.footnoteNumber}: ${this.displayName.toUpperCase()}›`,
 		});
 		return el;
 	}

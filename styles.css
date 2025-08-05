@@ -11,7 +11,9 @@
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	border-radius: 4px;
 	/* pointer-events: none; <-- This was the issue */
-	transition: top 0.2s ease-out, left 0.2s ease-out;
+	transition:
+		top 0.2s ease-out,
+		left 0.2s ease-out;
 	overflow: hidden;
 }
 
@@ -79,7 +81,7 @@ div.footnotes {
 
 /* Styles for the compact footnote definition marker */
 .escoli-footdef-mark {
-	color: var(--text-muted);
+	color: var(--code-function);
 	cursor: pointer;
 	font-family: var(--font-monospace);
 	font-size: var(--font-smaller);
