@@ -46,6 +46,7 @@ class MarginaliaWidget extends WidgetType {
 		private readonly content: string,
 		private readonly app: App,
 		private readonly footnoteNumber: number,
+		private readonly name: string,
 		private readonly displayName: string,
 		private readonly pluginView: EscoliViewPlugin,
 		public readonly position: "left" | "right",
@@ -57,6 +58,7 @@ class MarginaliaWidget extends WidgetType {
 	eq(other: MarginaliaWidget): boolean {
 		return (
 			this.sourcePath === other.sourcePath &&
+			this.name === other.name &&
 			this.displayName === other.displayName &&
 			this.footnoteNumber === other.footnoteNumber &&
 			this.content === other.content &&
@@ -75,10 +77,22 @@ class MarginaliaWidget extends WidgetType {
 		const headerEl = this.noteEl.createDiv({
 			cls: "escoli-note-header",
 		});
-		headerEl.createSpan({
+		const numberEl = headerEl.createSpan({
 			cls: "escoli-note-header-number",
 			text: `${this.footnoteNumber}:`,
 		});
+
+		numberEl.style.cursor = "pointer";
+		numberEl.addEventListener("click", () => {
+			const location = this.pluginView.getFootnoteDefLocation(this.name);
+			if (location) {
+				this.pluginView.view.dispatch({
+					selection: { anchor: location.from, head: location.to },
+					scrollIntoView: true,
+				});
+			}
+		});
+
 		headerEl.createSpan({
 			cls: "escoli-note-header-title",
 			text: `${processedName}`,
@@ -208,6 +222,10 @@ class EscoliViewPlugin {
 		string,
 		{ from: number; to: number }
 	>();
+
+	public getFootnoteDefLocation(name: string) {
+		return this.footnoteDefLocations.get(name);
+	}
 
 	constructor(
 		public view: EditorView,
@@ -459,6 +477,7 @@ class EscoliViewPlugin {
 							this.footnoteDefs.get(name)!,
 							this.plugin.app,
 							footnoteNumber,
+							name,
 							displayName,
 							this,
 							position,

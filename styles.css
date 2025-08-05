@@ -10,7 +10,7 @@
 	z-index: 100;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	border-radius: 4px;
-	pointer-events: none;
+	/* pointer-events: none; <-- This was the issue */
 	transition: top 0.2s ease-out, left 0.2s ease-out;
 	overflow: hidden;
 }
@@ -23,11 +23,13 @@
 	text-transform: uppercase;
 	font-size: 0.9em;
 	color: var(--text-normal);
+	pointer-events: none; /* Ignore clicks on the header background */
 }
 
 /* Styles for the note's main content area */
 .escoli-note-content {
 	padding: 0.5em 1em 0.6em;
+	pointer-events: none; /* Ignore clicks on the content area */
 }
 
 .escoli-note-content > :first-child {
@@ -58,6 +60,8 @@
 
 .escoli-note-header-number {
 	color: var(--code-function);
+	pointer-events: auto; /* Make the number clickable */
+	cursor: pointer;
 }
 
 .escoli-note-header-title {
