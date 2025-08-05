@@ -15,18 +15,18 @@ An Obsidian plugin to transform your footnotes into elegant, interactive margina
 
 Escoli enhances Obsidian's editor by turning a specific subset of your footnotes into a dynamic system for side notes.
 
-*   **Live Preview Marginalia**: Your footnote content appears automatically in the margin as you write—no need to switch to Reading View.
-*   **Configurable Note Placement**: By default, notes appear in the right margin. To place a specific note in the left margin, simply start its identifier with `l-`. For example, `[^esc-l-my-left-note]`.
-*   **Interactive & Editable Markers**:
-    *   Footnote references in your text are replaced by clean, numbered markers (`‹1 ☞›`).
-    *   The corresponding footnote definitions at the bottom of your note are replaced by a compact marker (`‹↳ 1: KEY CONCEPT›`).
-    *   Placing your cursor on either marker instantly reveals the original Markdown for seamless editing.
-*   **Clickable Navigation**:
-    *   Clicking the number in a margin note (e.g., `1:`) instantly scrolls the editor to the corresponding footnote definition.
-*   **Foldable Notes**: Click the title text of a margin note to fold or unfold its content, keeping your workspace tidy.
-*   **Smart Note Titles**: Marginal notes are automatically titled with a sequential number and the name of your reference. For example, a footnote named `[^esc-key-concept]` will appear in the margin with the title `1: KEY CONCEPT`.
-*   **Customizable Prefix**: You control which footnotes become marginalia. By default, only footnotes starting with `[^esc-...]` are transformed, but you can configure this prefix in the settings.
-*   **Clean Workspace**: The plugin automatically hides the standard footnote list at the bottom of the page in Reading View.
+- **Live Preview Marginalia**: Your footnote content appears automatically in the margin as you write—no need to switch to Reading View.
+- **Configurable Note Placement**: By default, notes appear in the right margin. To place a specific note in the left margin, simply start its identifier with `l-`. For example, `[^esc-l-my-left-note]`.
+- **Interactive & Editable Markers**:
+    - Footnote references in your text are replaced by clean, numbered markers (`‹1 ☞›`).
+    - The corresponding footnote definitions at the bottom of your note are replaced by a compact marker (`‹↳ 1: KEY CONCEPT›`).
+    - Placing your cursor on either marker instantly reveals the original Markdown for seamless editing.
+- **Clickable Navigation**:
+    - Clicking the number in a margin note (e.g., `1:`) instantly scrolls the editor to the corresponding footnote definition.
+- **Foldable Notes**: Click the title text of a margin note to fold or unfold its content, keeping your workspace tidy.
+- **Smart Note Titles**: Marginal notes are automatically titled with a sequential number and the name of your reference. For example, a footnote named `[^esc-key-concept]` will appear in the margin with the title `1: KEY CONCEPT`.
+- **Customizable Prefix**: You control which footnotes become marginalia. By default, only footnotes starting with `[^esc-...]` are transformed, but you can configure this prefix in the settings.
+- **Clean Workspace**: The plugin automatically hides the standard footnote list at the bottom of the page in Reading View.
 
 ---
 

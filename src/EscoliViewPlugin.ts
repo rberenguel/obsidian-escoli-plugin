@@ -120,14 +120,14 @@ class MarginaliaWidget extends WidgetType {
 			return null;
 		}
 
-		const scrollerRect = this.pluginView.view.scrollDOM.getBoundingClientRect();
+		const scrollerRect =
+			this.pluginView.view.scrollDOM.getBoundingClientRect();
 		const scrollTop = this.pluginView.view.scrollDOM.scrollTop;
 		const idealTopInScroller = refRect.top - scrollerRect.top + scrollTop;
 
 		const noteHeight = this.noteEl.offsetHeight;
 		return {
-			idealTop:
-				idealTopInScroller - noteHeight / 2 + refRect.height / 2,
+			idealTop: idealTopInScroller - noteHeight / 2 + refRect.height / 2,
 			height: noteHeight,
 		};
 	}
@@ -154,8 +154,7 @@ class MarginaliaWidget extends WidgetType {
 		let noteWidth: number;
 
 		if (this.position === "right") {
-			availableSpace =
-				parseFloat(sizerComputedStyle.marginRight) || 0;
+			availableSpace = parseFloat(sizerComputedStyle.marginRight) || 0;
 			noteWidth = Math.min(
 				ORIGINAL_NOTE_WIDTH,
 				availableSpace - NOTE_MARGIN,
@@ -320,8 +319,7 @@ class EscoliViewPlugin {
 					adjusted = false;
 					for (const placed of placedNotes) {
 						if (
-							finalTop <
-								placed.bottom + PADDING_BETWEEN_NOTES &&
+							finalTop < placed.bottom + PADDING_BETWEEN_NOTES &&
 							finalTop + height + PADDING_BETWEEN_NOTES >
 								placed.top
 						) {
@@ -408,7 +406,9 @@ class EscoliViewPlugin {
 
 		// Create a set of definition start positions for efficient lookup
 		const defStartPositions = new Set(
-			Array.from(this.footnoteDefLocations.values()).map((loc) => loc.from),
+			Array.from(this.footnoteDefLocations.values()).map(
+				(loc) => loc.from,
+			),
 		);
 
 		const refRegex = /\[\^(.+?)\]/g;
