@@ -39,6 +39,7 @@ class MarginaliaWidget extends WidgetType {
 	public supEl: HTMLElement | null = null;
 	private contentEl: HTMLElement | null = null;
 	private component: Component;
+	private isFolded = false;
 
 	constructor(
 		public readonly sourcePath: string | undefined,
@@ -93,9 +94,15 @@ class MarginaliaWidget extends WidgetType {
 			}
 		});
 
-		headerEl.createSpan({
+		const titleEl = headerEl.createSpan({
 			cls: "escoli-note-header-title",
 			text: `${processedName}`,
+		});
+
+		titleEl.addEventListener("click", () => {
+			this.isFolded = !this.isFolded;
+			this.noteEl?.toggleClass("is-folded", this.isFolded);
+			this.pluginView.scheduleLayout();
 		});
 
 		this.contentEl = this.noteEl.createDiv({ cls: "escoli-note-content" });
@@ -131,19 +138,16 @@ class MarginaliaWidget extends WidgetType {
 	 */
 	applyPosition(top: number, view: EditorView): boolean {
 		if (!this.noteEl) {
-			this.hide();
 			return false;
 		}
 
-		const sizerEl = view.dom.querySelector(".cm-sizer");
+		const sizerEl = view.dom.querySelector<HTMLElement>(".cm-sizer");
 		if (!sizerEl) {
-			this.hide();
 			return false;
 		}
 
 		const sizerComputedStyle = window.getComputedStyle(sizerEl);
 		const NOTE_MARGIN = 20;
-		const MIN_NOTE_WIDTH = 100;
 		const ORIGINAL_NOTE_WIDTH = 220;
 
 		let availableSpace: number;
@@ -156,40 +160,22 @@ class MarginaliaWidget extends WidgetType {
 		}
 		availableSpace -= NOTE_MARGIN;
 
-		if (availableSpace < MIN_NOTE_WIDTH) {
-			this.hide();
-			return false;
-		}
-
-		this.show();
+		// Ensure the note is always visible
+		this.noteEl.style.display = "";
 
 		const noteWidth = Math.min(ORIGINAL_NOTE_WIDTH, availableSpace);
 		this.noteEl.style.width = `${noteWidth}px`;
 
-		const sizerRect = sizerEl.getBoundingClientRect();
-		const scrollerRect = view.scrollDOM.getBoundingClientRect();
-
+		// Use offsetLeft/offsetWidth for more stable positioning vs. getBoundingClientRect
 		if (this.position === "right") {
-			const left = sizerRect.right - scrollerRect.left + NOTE_MARGIN;
+			const left = sizerEl.offsetLeft + sizerEl.offsetWidth + NOTE_MARGIN;
 			this.noteEl.style.left = `${left}px`;
 		} else {
-			const right = sizerRect.left - scrollerRect.left - NOTE_MARGIN;
+			const right = sizerEl.offsetLeft - NOTE_MARGIN;
 			this.noteEl.style.left = `${right - noteWidth}px`;
 		}
 		this.noteEl.style.top = `${top}px`;
 		return true;
-	}
-
-	hide() {
-		if (this.noteEl) {
-			this.noteEl.style.opacity = "0";
-		}
-	}
-
-	show() {
-		if (this.noteEl) {
-			this.noteEl.style.opacity = "1";
-		}
 	}
 
 	private async renderMarkdownContent() {
@@ -315,7 +301,8 @@ class EscoliViewPlugin {
 			for (const widget of widgets) {
 				const layoutInput = widget.getLayoutInput();
 				if (!layoutInput) {
-					widget.hide();
+					// If we can't determine the position, don't do anything.
+					// Leave the note where it was.
 					continue;
 				}
 
