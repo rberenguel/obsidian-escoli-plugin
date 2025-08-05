@@ -46,7 +46,7 @@ class MarginaliaWidget extends WidgetType {
 		this.supEl = createEl("sup", { cls: "escoli-footref-mark" });
 		this.supEl.dataset.footnotenumber = `${this.footnoteNumber}`;
 
-		this.noteEl = document.body.createDiv({ cls: "escoli-note" });
+		this.noteEl = view.scrollDOM.createDiv({ cls: "escoli-note" });
 		const processedName = this.displayName.replace(/-/g, " ");
 		const headerEl = this.noteEl.createDiv({
 			cls: "escoli-note-header",
@@ -74,9 +74,15 @@ class MarginaliaWidget extends WidgetType {
 		if (refRect.width === 0 && refRect.height === 0) {
 			return null;
 		}
+
+		const scrollerRect = this.pluginView.view.scrollDOM.getBoundingClientRect();
+		const scrollTop = this.pluginView.view.scrollDOM.scrollTop;
+		const idealTopInScroller = refRect.top - scrollerRect.top + scrollTop;
+
 		const noteHeight = this.noteEl.offsetHeight;
 		return {
-			idealTop: refRect.top - noteHeight / 2 + refRect.height / 2,
+			idealTop:
+				idealTopInScroller - noteHeight / 2 + refRect.height / 2,
 			height: noteHeight,
 		};
 	}
@@ -123,11 +129,13 @@ class MarginaliaWidget extends WidgetType {
 		this.noteEl.style.width = `${noteWidth}px`;
 
 		const sizerRect = sizerEl.getBoundingClientRect();
+		const scrollerRect = view.scrollDOM.getBoundingClientRect();
+
 		if (this.position === "right") {
-			const left = sizerRect.right + NOTE_MARGIN;
+			const left = sizerRect.right - scrollerRect.left + NOTE_MARGIN;
 			this.noteEl.style.left = `${left}px`;
 		} else {
-			const right = sizerRect.left - NOTE_MARGIN;
+			const right = sizerRect.left - scrollerRect.left - NOTE_MARGIN;
 			this.noteEl.style.left = `${right - noteWidth}px`;
 		}
 		this.noteEl.style.top = `${top}px`;
