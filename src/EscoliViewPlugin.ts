@@ -151,29 +151,33 @@ class MarginaliaWidget extends WidgetType {
 		const ORIGINAL_NOTE_WIDTH = 220;
 
 		let availableSpace: number;
+		let noteWidth: number;
+
 		if (this.position === "right") {
 			availableSpace =
 				parseFloat(sizerComputedStyle.marginRight) || 0;
-		} else {
-			availableSpace =
-				parseFloat(sizerComputedStyle.marginLeft) || 0;
-		}
-		availableSpace -= NOTE_MARGIN;
+			noteWidth = Math.min(
+				ORIGINAL_NOTE_WIDTH,
+				availableSpace - NOTE_MARGIN,
+			);
+			this.noteEl.style.width = `${noteWidth}px`;
 
-		// Ensure the note is always visible
-		this.noteEl.style.display = "";
-
-		const noteWidth = Math.min(ORIGINAL_NOTE_WIDTH, availableSpace);
-		this.noteEl.style.width = `${noteWidth}px`;
-
-		// Use offsetLeft/offsetWidth for more stable positioning vs. getBoundingClientRect
-		if (this.position === "right") {
 			const left = sizerEl.offsetLeft + sizerEl.offsetWidth + NOTE_MARGIN;
 			this.noteEl.style.left = `${left}px`;
 		} else {
-			const right = sizerEl.offsetLeft - NOTE_MARGIN;
-			this.noteEl.style.left = `${right - noteWidth}px`;
+			// Use the stable offsetLeft to determine available space
+			availableSpace = sizerEl.offsetLeft;
+			noteWidth = Math.min(
+				ORIGINAL_NOTE_WIDTH,
+				availableSpace - NOTE_MARGIN,
+			);
+			this.noteEl.style.width = `${noteWidth}px`;
+
+			const rightEdgeOfNote = sizerEl.offsetLeft - NOTE_MARGIN;
+			this.noteEl.style.left = `${rightEdgeOfNote - noteWidth}px`;
 		}
+
+		this.noteEl.style.display = "";
 		this.noteEl.style.top = `${top}px`;
 		return true;
 	}
@@ -276,8 +280,10 @@ class EscoliViewPlugin {
 	}
 
 	scheduleLayout = () => {
-		if (this.layoutTimeout) window.clearTimeout(this.layoutTimeout);
-		this.layoutTimeout = window.setTimeout(this.layoutMarginalia, 50);
+		if (this.layoutTimeout) window.cancelAnimationFrame(this.layoutTimeout);
+		this.layoutTimeout = window.requestAnimationFrame(
+			this.layoutMarginalia,
+		);
 	};
 
 	layoutMarginalia = () => {
