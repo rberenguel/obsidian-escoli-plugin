@@ -50,13 +50,22 @@
 }
 
 /* The visible pseudo-element that creates the marker. */
-.escoli-footref-mark::before {
+.escoli-footref-mark[data-direction="left"]::before {
 	/* UPDATED: Uses the sequential number for the marker again */
-	content: "‹" attr(data-footnotenumber) " ☞›";
+	content: "‹" attr(data-footnotenumber) " ☜›";
 	color: var(--code-function);
 	font-size: 0.85em;
 	white-space: nowrap;
 }
+
+.escoli-footref-mark[data-direction="right"]::before {
+	/* UPDATED: Uses the sequential number for the marker again */
+	content: "‹☞ " attr(data-footnotenumber) "›";
+	color: var(--code-function);
+	font-size: 0.85em;
+	white-space: nowrap;
+}
+
 
 .escoli-note-header-number {
 	color: var(--code-function);

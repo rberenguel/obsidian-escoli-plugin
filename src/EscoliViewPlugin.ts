@@ -72,6 +72,7 @@ class MarginaliaWidget extends WidgetType {
 
 		this.supEl = createEl("sup", { cls: "escoli-footref-mark" });
 		this.supEl.dataset.footnotenumber = `${this.footnoteNumber}`;
+		this.supEl.dataset.direction = this.position;
 
 		this.noteEl = view.scrollDOM.createDiv({ cls: "escoli-note" });
 		const processedName = this.displayName.replace(/-/g, " ");
@@ -254,13 +255,7 @@ class EscoliViewPlugin {
 		}
 
 		if (needsRedecorate) {
-			const newDecorations = this.buildDecorations(update.view);
-			// Only update decorations if the new set is not empty,
-			// or if we can confirm there are no footnotes left in the document.
-			// This prevents transient states during scrolling from wiping out the notes.
-			if (newDecorations.size > 0 || this.footnoteDefs.size === 0) {
-				this.decorations = newDecorations;
-			}
+			this.decorations = this.buildDecorations(update.view);
 		}
 
 		// Always schedule a layout, as things might need to be repositioned
@@ -392,17 +387,15 @@ class EscoliViewPlugin {
 	}
 
 	buildDecorations(view: EditorView): DecorationSet {
-		if (view.visibleRanges.length === 0 && view.state.doc.length > 0) {
-			return this.decorations;
-		}
-
 		const builder = new RangeSetBuilder<Decoration>();
 		const doc = view.state.doc;
 		const prefix = this.plugin.settings.prefix;
 		const currentSelection = view.state.selection.main;
 		const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path;
 
-		if (this.footnoteDefs.size === 0) return builder.finish();
+		if (this.footnoteDefs.size === 0) {
+			return builder.finish();
+		}
 
 		// Create a set of definition start positions for efficient lookup
 		const defStartPositions = new Set(
@@ -415,73 +408,68 @@ class EscoliViewPlugin {
 		const displayedFootnotes = new Map<string, number>();
 		let footnoteCounter = 1;
 
-		// First pass: find all references in the visible range to determine which footnotes are active
-		for (const { from, to } of view.visibleRanges) {
-			const text = doc.sliceString(from, to);
-			let match;
-			while ((match = refRegex.exec(text))) {
-				const name = match[1];
-				const matchPos = from + match.index;
+		// First pass: find all references in the entire document to determine which footnotes are active
+		const fullText = doc.sliceString(0, doc.length);
+		let match;
+		while ((match = refRegex.exec(fullText))) {
+			const name = match[1];
+			const matchPos = match.index;
 
-				// This is a definition, not a reference, so we skip it in this pass.
-				if (defStartPositions.has(matchPos)) {
-					continue;
-				}
+			// This is a definition, not a reference, so we skip it in this pass.
+			if (defStartPositions.has(matchPos)) {
+				continue;
+			}
 
-				if (this.footnoteDefs.has(name)) {
-					if (!displayedFootnotes.has(name)) {
-						displayedFootnotes.set(name, footnoteCounter++);
-					}
+			if (this.footnoteDefs.has(name)) {
+				if (!displayedFootnotes.has(name)) {
+					displayedFootnotes.set(name, footnoteCounter++);
 				}
 			}
 		}
 
 		// Second pass: build decorations for references
-		for (const { from, to } of view.visibleRanges) {
-			const text = doc.sliceString(from, to);
-			let match;
-			while ((match = refRegex.exec(text))) {
-				const name = match[1];
-				const matchStart = from + match.index;
-				const matchEnd = matchStart + match[0].length;
+		refRegex.lastIndex = 0; // Reset regex
+		while ((match = refRegex.exec(fullText))) {
+			const name = match[1];
+			const matchStart = match.index;
+			const matchEnd = matchStart + match[0].length;
 
-				// It's a definition, not a reference. Skip.
-				if (defStartPositions.has(matchStart)) {
-					continue;
-				}
+			// It's a definition, not a reference. Skip.
+			if (defStartPositions.has(matchStart)) {
+				continue;
+			}
 
-				if (this.footnoteDefs.has(name)) {
-					const selectionOverlaps =
-						currentSelection.from < matchEnd &&
-						currentSelection.to > matchStart;
+			if (this.footnoteDefs.has(name)) {
+				const selectionOverlaps =
+					currentSelection.from < matchEnd &&
+					currentSelection.to > matchStart;
 
-					if (!selectionOverlaps && displayedFootnotes.has(name)) {
-						const footnoteNumber = displayedFootnotes.get(name)!;
-						let displayName = name.substring(prefix.length);
-						let position: "left" | "right" = "right";
-						if (displayName.startsWith("l-")) {
-							position = "left";
-							displayName = displayName.substring(2);
-						}
-
-						const widget = new MarginaliaWidget(
-							activeFilePath,
-							matchStart,
-							this.footnoteDefs.get(name)!,
-							this.plugin.app,
-							footnoteNumber,
-							name,
-							displayName,
-							this,
-							position,
-						);
-
-						builder.add(
-							matchStart,
-							matchEnd,
-							Decoration.replace({ widget }),
-						);
+				if (!selectionOverlaps && displayedFootnotes.has(name)) {
+					const footnoteNumber = displayedFootnotes.get(name)!;
+					let displayName = name.substring(prefix.length);
+					let position: "left" | "right" = "right";
+					if (displayName.startsWith("l-")) {
+						position = "left";
+						displayName = displayName.substring(2);
 					}
+
+					const widget = new MarginaliaWidget(
+						activeFilePath,
+						matchStart,
+						this.footnoteDefs.get(name)!,
+						this.plugin.app,
+						footnoteNumber,
+						name,
+						displayName,
+						this,
+						position,
+					);
+
+					builder.add(
+						matchStart,
+						matchEnd,
+						Decoration.replace({ widget }),
+					);
 				}
 			}
 		}
