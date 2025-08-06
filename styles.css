@@ -66,7 +66,6 @@
 	white-space: nowrap;
 }
 
-
 .escoli-note-header-number {
 	color: var(--code-function);
 	pointer-events: auto; /* Make the number clickable */

@@ -23,7 +23,7 @@ Escoli enhances Obsidian's editor by turning a specific subset of your footnotes
     - Placing your cursor on either marker instantly reveals the original Markdown for seamless editing.
 - **Clickable Navigation**:
     - Clicking the number in a margin note (e.g., `1:`) instantly scrolls the editor to the corresponding footnote definition.
-- **Foldable Notes**: Click the title text of a margin note to fold or unfold its content, keeping your workspace tidy.
+- **Foldable Notes**: Click the title text of a margin note to fold or unfold its content, keeping your workspace tidy. The folded state is saved directly to the footnote definition using `<` for folded and `>` for unfolded.
 - **Smart Note Titles**: Marginal notes are automatically titled with a sequential number and the name of your reference. For example, a footnote named `[^esc-key-concept]` will appear in the margin with the title `1: KEY CONCEPT`.
 - **Customizable Prefix**: You control which footnotes become marginalia. By default, only footnotes starting with `[^esc-...]` are transformed, but you can configure this prefix in the settings.
 - **Clean Workspace**: The plugin automatically hides the standard footnote list at the bottom of the page in Reading View.
@@ -40,9 +40,11 @@ Escoli enhances Obsidian's editor by turning a specific subset of your footnotes
     ```
 4.  Define the content for your footnote at the bottom of the note, it is a normal footnote for any other purpose:
     ```markdown
-    [^esc-token-bucket]: The Token Bucket algorithm is a flexible and efficient rate-limiting mechanism. It works by filling a bucket with tokens at a fixed rate (e.g., one token per second). Each request consumes a token, and if no tokens are available, the request is rejected.
+    [^esc-token-bucket]:
+        > The Token Bucket algorithm is a flexible and efficient rate-limiting mechanism. It works by filling a bucket with tokens at a fixed rate (e.g., one token per second). Each request consumes a token, and if no tokens are available, the request is rejected.
     ```
 5.  Escoli will render the reference as a numbered marker (`‹1 ☞›`) and display the content in a note in the right margin of your editor.
+6.  To set the initial state of a note, start its definition with `< ` for folded or `> ` for unfolded. If no marker is present, the note will be unfolded by default. Clicking the title of the marginalia will automatically update the source footnote with the correct marker.
 
 ---
 

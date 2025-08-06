@@ -51,9 +51,11 @@ class MarginaliaWidget extends WidgetType {
 		private readonly displayName: string,
 		private readonly pluginView: EscoliViewPlugin,
 		public readonly position: "left" | "right",
+		public readonly initialFoldedState: boolean,
 	) {
 		super();
 		this.component = new Component();
+		this.isFolded = this.initialFoldedState;
 	}
 
 	eq(other: MarginaliaWidget): boolean {
@@ -63,7 +65,8 @@ class MarginaliaWidget extends WidgetType {
 			this.displayName === other.displayName &&
 			this.footnoteNumber === other.footnoteNumber &&
 			this.content === other.content &&
-			this.position === other.position
+			this.position === other.position &&
+			this.initialFoldedState === other.initialFoldedState
 		);
 	}
 
@@ -75,6 +78,9 @@ class MarginaliaWidget extends WidgetType {
 		this.supEl.dataset.direction = this.position;
 
 		this.noteEl = view.scrollDOM.createDiv({ cls: "escoli-note" });
+		if (this.isFolded) {
+			this.noteEl.addClass("is-folded");
+		}
 		const processedName = this.displayName.replace(/-/g, " ");
 		const headerEl = this.noteEl.createDiv({
 			cls: "escoli-note-header",
@@ -104,6 +110,44 @@ class MarginaliaWidget extends WidgetType {
 			this.isFolded = !this.isFolded;
 			this.noteEl?.toggleClass("is-folded", this.isFolded);
 			this.pluginView.scheduleLayout();
+
+			const location = this.pluginView.getFootnoteDefLocation(this.name);
+			if (!location) return;
+
+			const doc = this.pluginView.view.state.doc;
+			const firstLine = doc.lineAt(location.from);
+			const markerEndIndex = firstLine.text.indexOf("]:");
+			if (markerEndIndex === -1) return;
+
+			const contentStartInLine = markerEndIndex + 2;
+			const contentOnFirstLine =
+				firstLine.text.substring(contentStartInLine);
+			const trimmedContent = contentOnFirstLine.trimStart();
+			const leadingSpaces =
+				contentOnFirstLine.length - trimmedContent.length;
+			const contentStartPos =
+				firstLine.from + contentStartInLine + leadingSpaces;
+
+			const hasFoldMarker =
+				trimmedContent.startsWith("< ") ||
+				trimmedContent.startsWith("> ");
+			const newMarker = this.isFolded ? "< " : "> ";
+
+			let transaction;
+			if (hasFoldMarker) {
+				transaction = {
+					from: contentStartPos,
+					to: contentStartPos + 2,
+					insert: newMarker,
+				};
+			} else {
+				transaction = {
+					from: contentStartPos,
+					to: contentStartPos,
+					insert: newMarker,
+				};
+			}
+			this.pluginView.view.dispatch({ changes: transaction });
 		});
 
 		this.contentEl = this.noteEl.createDiv({ cls: "escoli-note-content" });
@@ -207,7 +251,10 @@ class EscoliViewPlugin {
 	private widgetsForLayout: MarginaliaWidget[] = [];
 	private layoutTimeout: number | null = null;
 	private component: Component;
-	private footnoteDefs = new Map<string, string>();
+	private footnoteDefs = new Map<
+		string,
+		{ content: string; isFolded: boolean }
+	>();
 	private footnoteDefLocations = new Map<
 		string,
 		{ from: number; to: number }
@@ -348,14 +395,14 @@ class EscoliViewPlugin {
 
 		for (let i = 1; i <= doc.lines; i++) {
 			const line = doc.line(i);
-			const markerEndIndex = line.text.indexOf("]:");
+			const markerEndIndex = line.text.indexOf("]: ");
 			if (line.text.startsWith("[^") && markerEndIndex > 2) {
 				const name = line.text.substring(2, markerEndIndex);
 				if (name.startsWith(prefix)) {
 					const defStartPos = line.from;
 					let defEndPos = line.to;
 
-					let content = [
+					let contentLines = [
 						line.text.substring(markerEndIndex + 2).trimStart(),
 					];
 					let nextLineNum = i + 1;
@@ -366,7 +413,7 @@ class EscoliViewPlugin {
 							nextLine.text.startsWith("    ") ||
 							nextLine.text.startsWith("\t")
 						) {
-							content.push(
+							contentLines.push(
 								nextLine.text.replace(/^(\s{4}|\t)/, ""),
 							);
 							defEndPos = nextLine.to;
@@ -375,7 +422,22 @@ class EscoliViewPlugin {
 							break;
 						}
 					}
-					this.footnoteDefs.set(name, content.join("\n").trim());
+
+					let fullContent = contentLines.join("\n").trim();
+					let isFolded = false; // Default to unfolded
+
+					if (fullContent.startsWith("> ")) {
+						isFolded = false;
+						fullContent = fullContent.substring(2);
+					} else if (fullContent.startsWith("< ")) {
+						isFolded = true;
+						fullContent = fullContent.substring(2);
+					}
+
+					this.footnoteDefs.set(name, {
+						content: fullContent,
+						isFolded: isFolded,
+					});
 					this.footnoteDefLocations.set(name, {
 						from: defStartPos,
 						to: defEndPos,
@@ -453,16 +515,18 @@ class EscoliViewPlugin {
 						displayName = displayName.substring(2);
 					}
 
+					const def = this.footnoteDefs.get(name)!;
 					const widget = new MarginaliaWidget(
 						activeFilePath,
 						matchStart,
-						this.footnoteDefs.get(name)!,
+						def.content,
 						this.plugin.app,
 						footnoteNumber,
 						name,
 						displayName,
 						this,
 						position,
+						def.isFolded,
 					);
 
 					builder.add(
